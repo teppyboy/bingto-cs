@@ -31,7 +31,6 @@ namespace Bingto
             using var playwright = await Playwright.CreateAsync();
             if (!CheckBrowsers(playwright))
             {
-                Console.WriteLine("Installing browsers...");
                 InstallBrowsers();
             }
             string? cookiesFile = Path.GetDirectoryName(System.AppContext.BaseDirectory) + "/cookies.json";
@@ -54,6 +53,13 @@ namespace Bingto
             await Task.Delay(random.Next(min, max));
         }
 
+        /// <summary>
+        /// Launch Edge/Chromium browser.
+        /// </summary>
+        /// <param name="playwright"></param>
+        /// <param name="silent"></param>
+        /// <param name="forceChromium"></param>
+        /// <returns></returns>
         static async Task<IBrowser> LaunchBrowser(IPlaywright playwright, bool silent = false, bool forceChromium = false)
         {
             var options = new BrowserTypeLaunchOptions
@@ -255,6 +261,7 @@ namespace Bingto
         /// </summary>
         static void InstallBrowsers()
         {
+            Console.WriteLine("Installing browsers...");
             Microsoft.Playwright.Program.Main(installArgs);
         }
 
@@ -268,41 +275,6 @@ namespace Bingto
             if (chromiumPath == null || webkitPath == null)
                 return false;
             return true;
-        }
-
-        /// <summary>
-        /// Load cookies from a file.
-        /// </summary>
-        [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-        [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(String, JsonSerializerOptions)")]
-        static async Task<List<Cookie>> LoadCookies(string file)
-        {
-            var json = await File.ReadAllTextAsync(file);
-            var storageState = JsonSerializer.Deserialize<JsonNode>(json);
-            var cookies = new List<Cookie>();
-            JsonArray? list = storageState?["cookies"]?.AsArray();
-            for (int i = 0; i < list?.Count; i++)
-            {
-                JsonNode? cookie = list[i];
-                if (cookie == null)
-                    continue;
-                // Console.WriteLine(cookie["name"]?.ToString() ?? "error");
-
-                // If parsed from proper JSON, this should never be null.
-                // The default value is unreliable by the way.
-                cookies.Add(new Cookie
-                {
-                    Name = cookie["name"]?.ToString() ?? "",
-                    Value = cookie["value"]?.ToString() ?? "",
-                    Domain = cookie["domain"]?.ToString() ?? "",
-                    Path = cookie["path"]?.ToString() ?? "",
-                    Expires = float.Parse(cookie["expires"]?.ToString() ?? "-1"),
-                    HttpOnly = bool.Parse(cookie["httpOnly"]?.ToString() ?? ""),
-                    Secure = bool.Parse(cookie["secure"]?.ToString() ?? ""),
-                    SameSite = Enum.Parse<SameSiteAttribute>(cookie["sameSite"]?.ToString() ?? ""),
-                });
-            }
-            return cookies;
         }
     }
 }
