@@ -9,7 +9,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
 	<PublishTrimmed>true</PublishTrimmed>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
-    <StartupObject>Bingto.Program</StartupObject>    
+    <StartupObject>Bingto.Program</StartupObject>
+    <Platforms>AnyCPU;x64</Platforms>    
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,30 +1,23 @@
 ﻿using Microsoft.Playwright;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Reflection;
-using System.Runtime;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Bingto
 {
     internal class Program
     {
         static readonly string? version = Assembly.GetExecutingAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        internal static readonly string[] installArgs = ["install", "chromium", "webkit"];
+        static readonly string[] installArgs = ["install", "chromium", "webkit"];
         static readonly Random random = new();
 
         static async Task Main(string[] args)
         {
+            Console.Title = $"Bingto";
             if (version != null)
             {
-                Console.Title = $"Bingto v{version}";
                 Console.WriteLine($"Bingto v{version} - https://github.com/teppyboy/bingto-cs");
             }
             else
             {
-                Console.Title = "Bingto";
                 Console.WriteLine("Bingto - https://github.com/teppyboy/bingto-cs");
             }
             Console.WriteLine("Experimental version of Bingto in C#, use at your own risk.");
@@ -39,7 +32,10 @@ namespace Bingto
                 Console.WriteLine("Cookies not found, initiating the login process...");
                 await Login(playwright);
             }
-            await StartPC(playwright);
+            Console.WriteLine("Loading word list...");
+            WordList wordList = await WordList.Init();
+            await StartPC(playwright, wordList);
+            await StartMobile(playwright, wordList);
         }
 
         /// <summary>
@@ -98,11 +94,53 @@ namespace Bingto
             await page.Keyboard.PressAsync("Enter");
         }
 
+        /// <summary>
+        /// Open the mobile drawer.
+        /// </summary>
+        /// <param name="page"></param>
+        /// <returns></returns>
+        static async Task MOpenDrawer(IPage page)
+        {
+            try
+            {
+                await page.ClickAsync("#mHamburger", new PageClickOptions()
+                {
+                    Timeout = 5000,
+                });
+            }
+            catch (PlaywrightException)
+            {
+                Console.WriteLine("Failed to open drawer.");
+            }
+        }
+
         static async Task<int> GetScore(IPage page, bool mobile)
         {
             if (mobile)
             {
-
+                await MOpenDrawer(page);
+                await Wait(500, 1500);
+                for (int i = 0; i < 3; i++)
+                {
+                    Console.WriteLine("Getting score (mobile)...");
+                    try
+                    {
+                        return int.Parse(await page.InnerTextAsync("#fly_id_rc", new()
+                        {
+                            Timeout = 3000,
+                        }));
+                    }
+                    catch (Exception ex) when (
+                        ex is FormatException
+                        || ex is PlaywrightException
+                    )
+                    {   
+                        // TODO: Handle timeout properly
+                        Console.WriteLine("Failed to get score, waiting...");
+                        await MOpenDrawer(page);
+                        await Wait(500, 1500);
+                    }
+                }
             }
             else
             {
@@ -129,12 +167,10 @@ namespace Bingto
             return -1;
         }
 
-        static async Task Search(IPage page, bool mobile = false)
+        static async Task Search(IPage page, WordList wordList, bool mobile = false)
         {
             var prevScore = -1;
             var sameScoreCount = 0;
-            // Initialize wordlist
-            var wordList = await WordList.Init();
             for (int i = 0; i < 50; i++)
             {
                 Console.WriteLine($"Search attempt {i + 1}/50...");
@@ -143,7 +179,41 @@ namespace Bingto
                 Console.WriteLine($"Words: {string.Join(" ", words)}");
                 if (mobile)
                 {
-                    // TODO: Implement mobile search
+                    if (i == 0)
+                    {
+                        Console.WriteLine("Simulating typing (first search) on mobile...");
+                        await page.ClickAsync("#HBleft");
+                        await Wait(1000, 2000);
+                        await page.ClickAsync("#sb_form_c");
+                        await Wait(2000, 3000);
+                        await page.Keyboard.TypeAsync(string.Join(" ", words), new KeyboardTypeOptions()
+                        {
+                            Delay = 50,
+                        });
+                        await Wait(1000, 2000);
+                        await page.Keyboard.PressAsync("Enter");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Simulating typing on mobile...");
+                        try
+                        {
+                            await page.ClickAsync("#HBleft", new PageClickOptions()
+                            {
+                                Timeout = 1000,
+                            });
+                        }
+                        catch (PlaywrightException)
+                        {
+                            Console.WriteLine("Drawer already closed.");
+                        }
+                        await SearchQuery(page, string.Join(" ", words));
+                    }
+                    await Wait(500, 1000);
+                    await page.Locator(".tilk").First.ClickAsync();
+                    await Wait(1000, 2000);
+                    await page.GoBackAsync();
+                    await Wait(500, 1000);
                 }
                 else
                 {
@@ -188,7 +258,7 @@ namespace Bingto
 
         // [RequiresUnreferencedCode("Calls Bingto.Program.LoadCookies(String)")]
         // [RequiresDynamicCode("Calls Bingto.Program.LoadCookies(String)")]
-        static async Task StartPC(IPlaywright playwright, bool silent = false, bool forceChromium = false)
+        static async Task StartPC(IPlaywright playwright, WordList wordlist, bool silent = false, bool forceChromium = false)
         {
             var profile = playwright.Devices["Desktop Edge"];
             // Use the cookies file as the storage state path.
@@ -202,7 +272,49 @@ namespace Bingto
             await page.ClickAsync("#id_l");
             await Wait(1000, 2000);
             await CheckSession(page);
-            await Search(page, false);
+            await Search(page, wordlist, false);
+            var cookies = await context.StorageStateAsync();
+            File.WriteAllText("cookies.json", cookies);
+        }
+
+        static async Task StartMobile(IPlaywright playwright, WordList wordlist, bool silent = false, bool noWebkit = false, bool forceChromium = false, bool realViewport = false, bool usePcProfile = false)
+        {
+            var profile = playwright.Devices["iPhone 13 Pro Max"];
+            var userAgent = Constants.MOBILE_UA_TEMPLATE.Replace("{IOS_VERSION}", Constants.VALID_IOS_VERSIONS[random.Next(0, Constants.VALID_IOS_VERSIONS.Length)]);
+            Console.WriteLine($"Using user agent: {userAgent}");
+            Console.WriteLine("Monkey-patching WebKit user agent...");
+            profile.UserAgent = userAgent;
+            // Use the cookies file as the storage state path.
+            profile.StorageStatePath = "cookies.json";
+            // var cookies = await LoadCookies("cookies.json");
+            await using var browser = await playwright.Webkit.LaunchAsync(new BrowserTypeLaunchOptions()
+            {
+                Headless = silent,
+            });
+            await using var context = await browser.NewContextAsync(profile);
+            var page = await context.NewPageAsync();
+            await page.GotoAsync("https://www.bing.com/");
+            await Wait(2000, 3000);
+            if (await GetScore(page, true) == -1)
+            {
+                Console.WriteLine("Clicking the 'Login' button...");
+                try
+                {
+                    await page.ClickAsync("#hb_s", new PageClickOptions()
+                    {
+                        Timeout = 1000,
+                    });
+                }
+                catch (PlaywrightException)
+                {
+                    Console.WriteLine("Failed to click the 'Login' button, assuming we're logged in.");
+                }
+            }
+            await Wait(3000, 5000);
+            await CheckSession(page);
+            await Search(page, wordlist, true);
+            var cookies = await context.StorageStateAsync();
+            File.WriteAllText("cookies.json", cookies);
         }
 
         static async Task CheckSession(IPage page)
@@ -226,10 +338,7 @@ namespace Bingto
             {
                 // We use temporary data directory because the persistent context only work for the current browser type
                 // e.g. Chromium as we're using now, and if we want to use Edge/WebKit, we need to login again.
-                await using var browser = await playwright.Chromium.LaunchAsync(new() 
-                {
-                    Headless = false,
-                });
+                await using var browser = await LaunchBrowser(playwright);
                 var profile = playwright.Devices["Desktop Edge"];
                 await using var context = await browser.NewContextAsync(profile);
                 var page = await context.NewPageAsync();
