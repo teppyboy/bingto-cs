@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34309.116
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bingto", "Bingto\Bingto.csproj", "{0A3575C0-65A6-4395-A8DC-BDA02EC8A555}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0A3575C0-65A6-4395-A8DC-BDA02EC8A555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A3575C0-65A6-4395-A8DC-BDA02EC8A555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A3575C0-65A6-4395-A8DC-BDA02EC8A555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A3575C0-65A6-4395-A8DC-BDA02EC8A555}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6C7C5AC6-3171-4294-B7D0-5A2A2A6FA3B1}
+	EndGlobalSection
+EndGlobal
